@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Flappy Bird</title>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Baloo 2', sans-serif;
+    }
+    canvas {
+      position: absolute;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+    #score {
+      position: absolute;
+      top: 20px;
+      width: 100%;
+      text-align: center;
+      font-size: 80px;
+      color: white;
+      text-shadow: 1px 1px 4px #000;
+      z-index: 2;
+    }
+    #startText {
+      position: absolute;
+      top: 50%;
+      width: 100%;
+      text-align: center;
+      font-size: 36px;
+      color: white;
+      text-shadow: 5px 5px 8px black;
+      z-index: 2;
+    }
+    #gameOver {
+      position: absolute;
+      top: 40%;
+      width: 100%;
+      text-align: center;
+      display: none;
+      z-index: 3;
+      color: white;
+      font-size: 60px;
+      text-shadow: 2px 2px 6px black;
+    }
+    #gameOver button {
+      margin-top: 30px;
+      padding: 20px 100px;
+      font-size: 50px;
+      border: none;
+      border-radius: 999px;
+      background-color: #000;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="score">0</div>
+  <div id="startText">Nhấn Space hoặc chạm để bắt đầu (Dev: ZuanHing)</div>
+  <div id="gameOver">
+    <p>Thua cmm rồi 😔</p>
+    <p id="finalScore">Điểm: 0</p>
+    <button onclick="location.reload()">Nhấp zô đây để chơi lại nè</button>
+  </div>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const birdImg = new Image();
+    birdImg.src = "bird.png";
+    const bgImg = new Image();
+    bgImg.src = "bg.png";
+
+    function playSound(src) {
+      const sfx = new Audio(src);
+      sfx.play();
+    }
+
+    let frames = 0;
+    const GRAVITY = 0.25;
+    const JUMP = 4.6;
+    let gameStarted = false;
+    let gameOvered = false;
+    let score = 0;
+    let lastTop = canvas.height / 2;
+
+    const bird = {
+      x: canvas.width / 6,
+      y: canvas.height / 3,
+      width: 80,
+      height: 80,
+      velocity: 0,
+      jump() {
+        this.velocity = -JUMP;
+        playSound("jump.wav");
+      },
+      update() {
+        this.velocity += GRAVITY;
+        this.y += this.velocity;
+        if (this.y + this.height >= canvas.height) {
+          triggerGameOver();
+        }
+      },
+      draw() {
+        ctx.drawImage(birdImg, this.x, this.y, this.width, this.height);
+      }
+    };
+
+    const pipes = [];
+    const pipeWidth = 70;
+    const pipeGap = 200;
+    const pipeMaxDiff = 80;
+
+    function spawnPipe() {
+      let delta = (Math.random() * pipeMaxDiff * 2) - pipeMaxDiff;
+      let newTop = lastTop + delta;
+      const minTop = 50;
+      const maxTop = canvas.height - pipeGap - 50;
+      newTop = Math.max(minTop, Math.min(maxTop, newTop));
+      lastTop = newTop;
+
+      pipes.push({
+        x: canvas.width,
+        top: newTop,
+        bottom: newTop + pipeGap,
+        scored: false
+      });
+    }
+
+    function updatePipes() {
+      if (frames % 90 === 0) spawnPipe();
+
+      for (let i = 0; i < pipes.length; i++) {
+        const p = pipes[i];
+        p.x -= 3;
+
+        if (
+          bird.x + bird.width > p.x &&
+          bird.x < p.x + pipeWidth &&
+          (bird.y < p.top || bird.y + bird.height > p.bottom)
+        ) {
+          triggerGameOver();
+        }
+
+        if (!p.scored && p.x + pipeWidth < bird.x) {
+          p.scored = true;
+          score++;
+          document.getElementById("score").innerText = score;
+          playSound("point.wav");
+        }
+
+        if (p.x + pipeWidth < 0) {
+          pipes.splice(i, 1);
+          i--;
+        }
+      }
+    }
+
+    function drawPipes() {
+      ctx.fillStyle = "#f4d03f";
+      for (const p of pipes) {
+        ctx.fillRect(p.x, 0, pipeWidth, p.top);
+        ctx.fillRect(p.x, p.bottom, pipeWidth, canvas.height - p.bottom);
+      }
+    }
+
+    function triggerGameOver() {
+      if (gameOvered) return;
+      playSound("hit.wav");
+      gameOvered = true;
+      document.getElementById("gameOver").style.display = "block";
+      document.getElementById("finalScore").innerText = `Điểm: ${score}`;
+    }
+
+    function draw() {
+      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+      bird.draw();
+      drawPipes();
+    }
+
+    function update() {
+      bird.update();
+      updatePipes();
+    }
+
+    function loop() {
+      if (gameStarted && !gameOvered) {
+        update();
+        draw();
+        frames++;
+      } else if (!gameStarted) {
+        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+      }
+      requestAnimationFrame(loop);
+    }
+
+    function startOrJump() {
+      if (!gameStarted) {
+        gameStarted = true;
+        document.getElementById("startText").style.display = "none";
+      }
+      if (!gameOvered) bird.jump();
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.code === "Space") startOrJump();
+    });
+    canvas.addEventListener("click", startOrJump);
+    canvas.addEventListener("touchstart", e => {
+      e.preventDefault();
+      startOrJump();
+    });
+
+    loop();
+  </script>
+</body>
+</html>
